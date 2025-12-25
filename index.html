@@ -8,10 +8,16 @@
     <style>
         body { font-family: 'Noto Sans KR', sans-serif; text-align: center; padding: 20px; color: #333; }
         
+        input {
+            padding: 12px; font-size: 1.1em; width: 80%; max-width: 300px;
+            margin-bottom: 20px; border: 2px solid #ddd; border-radius: 8px; text-align: center;
+        }
+        input:focus { border-color: #4285F4; outline: none; }
+
         button {
             padding: 15px 30px; font-size: 1.1em; border: none; border-radius: 8px;
             background-color: #4285F4; color: white; cursor: pointer; transition: 0.3s;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 80%; max-width: 330px;
         }
         button:disabled { background-color: #ccc; cursor: not-allowed; }
         button:hover:not(:disabled) { background-color: #3367D6; }
@@ -21,8 +27,11 @@
 </head>
 <body>
 
-    <h2>📍 출석/위치 체크인</h2>
-    <p>아래 버튼을 누르면 현재 위치가 저장됩니다.</p>
+    <h2>📍 출석 체크인</h2>
+    <p>이름을 입력하고 저장 버튼을 눌러주세요.</p>
+    
+    <input type="text" id="username" placeholder="이름 (예: 홍길동)" required>
+    <br>
     
     <button id="checkInBtn" onclick="getLocation()">현재 위치 저장하기</button>
     <div id="status">대기 중...</div>
@@ -45,18 +54,27 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // 전역 함수로 노출 (저장 로직)
-        window.saveToFirebase = function(lat, lng, address) {
+        // 오늘 날짜 문자열 생성 (YYYY-MM-DD) - 관리자 필터용
+        function getTodayDateString() {
+            const d = new Date();
+            const year = d.getFullYear();
+            const month = ('0' + (d.getMonth() + 1)).slice(-2);
+            const day = ('0' + d.getDate()).slice(-2);
+            return `${year}-${month}-${day}`;
+        }
+
+        window.saveToFirebase = function(lat, lng, address, name) {
             const newRef = push(ref(db, 'locations'));
             set(newRef, {
+                name: name,                // 이름 추가
                 latitude: lat,
                 longitude: lng,
                 address: address,
-                timestamp: new Date().toLocaleString()
+                date: getTodayDateString(), // 날짜 필터용 (예: 2023-12-25)
+                timestamp: new Date().toLocaleString() // 화면 표시용 시간
             }).then(() => {
-                // 저장 완료 후 지도 표시는 하지 않고 메시지만 출력
-                document.getElementById('status').innerText = "✅ 저장 완료되었습니다! (창을 닫으셔도 됩니다)";
-                document.getElementById('checkInBtn').disabled = false; // 버튼 다시 활성화 (필요시)
+                document.getElementById('status').innerText = `✅ ${name}님, 저장 완료되었습니다!`;
+                document.getElementById('checkInBtn').disabled = false;
             }).catch(e => {
                 console.error(e);
                 document.getElementById('status').innerText = "❌ 저장 실패: " + e.message;
@@ -65,10 +83,19 @@
     </script>
 
     <script>
-        // ★ GAS 웹 앱 URL
+        // ★ GAS 웹 앱 URL (배포 후 주소 확인 필수)
         const GAS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzT2gSUo2rXDvvksuQUfB35NYe-ZTeHvGFJBbv2vOt2wcOimy0VkePTyOsGT4F0FiSo/exec";
         
         function getLocation() {
+            const nameInput = document.getElementById('username');
+            const name = nameInput.value.trim();
+
+            if (!name) {
+                alert("이름을 입력해주세요!");
+                nameInput.focus();
+                return;
+            }
+
             const statusDiv = document.getElementById('status');
             const btn = document.getElementById('checkInBtn');
 
@@ -85,21 +112,19 @@
                     const lat = position.coords.latitude;
                     const lng = position.coords.longitude;
                     
-                    statusDiv.innerText = "🔄 서버 통신 중...";
+                    statusDiv.innerText = "🔄 주소 변환 중...";
                     
-                    // GAS 호출 (주소 변환)
-                    fetch(`${GAS_SCRIPT_URL}?lat=${lat}&lng=${lng}`)
+                    // GAS 호출 (이름도 같이 전송)
+                    fetch(`${GAS_SCRIPT_URL}?lat=${lat}&lng=${lng}&name=${encodeURIComponent(name)}`)
                     .then(res => res.json())
                     .then(data => {
                         if(data.result === 'success') {
                             statusDiv.innerText = "💾 DB 저장 중...";
-                            
-                            // Firebase 저장 함수 호출
                             if(window.saveToFirebase) {
-                                window.saveToFirebase(lat, lng, data.address);
+                                window.saveToFirebase(lat, lng, data.address, name);
                             }
                         } else {
-                            statusDiv.innerText = "주소 변환 실패: " + (data.error || "알 수 없는 오류");
+                            statusDiv.innerText = "오류: " + (data.error || "알 수 없는 오류");
                             btn.disabled = false;
                         }
                     })
