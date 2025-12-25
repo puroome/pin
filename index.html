@@ -1,46 +1,7 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>위치 체크인</title>
-    
-    <style>
-        body { font-family: 'Noto Sans KR', sans-serif; text-align: center; padding: 20px; color: #333; }
-        
-        input {
-            padding: 12px; font-size: 1.1em; width: 80%; max-width: 300px;
-            margin-bottom: 20px; border: 2px solid #ddd; border-radius: 8px; text-align: center;
-        }
-        input:focus { border-color: #4285F4; outline: none; }
-
-        button {
-            padding: 15px 30px; font-size: 1.1em; border: none; border-radius: 8px;
-            background-color: #4285F4; color: white; cursor: pointer; transition: 0.3s;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 80%; max-width: 330px;
-        }
-        button:disabled { background-color: #ccc; cursor: not-allowed; }
-        button:hover:not(:disabled) { background-color: #3367D6; }
-
-        #status { margin: 20px 0; color: #666; font-size: 0.9em; font-weight: bold; }
-    </style>
-</head>
-<body>
-
-    <h2>📍 출석 체크인</h2>
-    <p>이름을 입력하고 저장 버튼을 눌러주세요.</p>
-    
-    <input type="text" id="username" placeholder="이름 (예: 홍길동)" required>
-    <br>
-    
-    <button id="checkInBtn" onclick="getLocation()">현재 위치 저장하기</button>
-    <div id="status">대기 중...</div>
-
-    <script type="module">
+<script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getDatabase, ref, push, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+        import { getDatabase, ref, push, set, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-        // ★ Firebase 설정 (기존 정보 유지)
         const firebaseConfig = {
             apiKey: "AIzaSyB-qu7Z0v_ygNbiKzT7tt6Byigp_AGcdPo",
             authDomain: "gps1-cf085.firebaseapp.com",
@@ -54,7 +15,6 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // 오늘 날짜 문자열 생성 (YYYY-MM-DD) - 관리자 필터용
         function getTodayDateString() {
             const d = new Date();
             const year = d.getFullYear();
@@ -63,27 +23,33 @@
             return `${year}-${month}-${day}`;
         }
 
-        window.saveToFirebase = function(lat, lng, address, name) {
+        // 1. 일단 저장하는 함수 (Key를 반환하도록 수정)
+        window.saveToFirebase = function(lat, lng, name) {
             const newRef = push(ref(db, 'locations'));
-            set(newRef, {
-                name: name,                // 이름 추가
+            const data = {
+                name: name,
                 latitude: lat,
                 longitude: lng,
-                address: address,
-                date: getTodayDateString(), // 날짜 필터용 (예: 2023-12-25)
-                timestamp: new Date().toLocaleString() // 화면 표시용 시간
-            }).then(() => {
-                document.getElementById('status').innerText = `✅ ${name}님, 저장 완료되었습니다!`;
-                document.getElementById('checkInBtn').disabled = false;
-            }).catch(e => {
-                console.error(e);
-                document.getElementById('status').innerText = "❌ 저장 실패: " + e.message;
-            });
+                address: "📍 주소 변환 중...", // 임시 메시지
+                date: getTodayDateString(),
+                timestamp: new Date().toLocaleString()
+            };
+            
+            return set(newRef, data)
+                .then(() => {
+                    return newRef.key; // 저장된 데이터의 고유 ID(Key)를 반환
+                });
+        };
+
+        // 2. 나중에 주소만 업데이트하는 함수
+        window.updateFirebaseAddress = function(key, newAddress) {
+            const updates = {};
+            updates['/locations/' + key + '/address'] = newAddress;
+            return update(ref(db), updates);
         };
     </script>
 
     <script>
-        // ★ GAS 웹 앱 URL (배포 후 주소 확인 필수)
         const GAS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzT2gSUo2rXDvvksuQUfB35NYe-ZTeHvGFJBbv2vOt2wcOimy0VkePTyOsGT4F0FiSo/exec";
         
         function getLocation() {
@@ -108,31 +74,47 @@
             btn.disabled = true;
 
             navigator.geolocation.getCurrentPosition(
-                (position) => {
+                async (position) => {
                     const lat = position.coords.latitude;
                     const lng = position.coords.longitude;
                     
-                    statusDiv.innerText = "🔄 주소 변환 중...";
-                    
-                    // GAS 호출 (이름도 같이 전송)
-                    fetch(`${GAS_SCRIPT_URL}?lat=${lat}&lng=${lng}&name=${encodeURIComponent(name)}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        if(data.result === 'success') {
-                            statusDiv.innerText = "💾 DB 저장 중...";
-                            if(window.saveToFirebase) {
-                                window.saveToFirebase(lat, lng, data.address, name);
+                    try {
+                        // [1단계] Firebase에 우선 저장 (속도 향상!)
+                        statusDiv.innerText = "🚀 데이터 저장 중...";
+                        
+                        // 모듈 스크립트의 함수 호출 (비동기 처리)
+                        const key = await window.saveToFirebase(lat, lng, name);
+                        
+                        // 사용자에게는 바로 성공 메시지 보여줌
+                        statusDiv.innerText = `✅ ${name}님, 저장 완료! (주소 변환 중...)`;
+                        // 버튼은 아직 비활성 상태로 두거나, 바로 풀어줘도 됨
+                        
+                        // [2단계] 백그라운드에서 GAS 호출 (구글 시트 저장 & 주소 변환)
+                        fetch(`${GAS_SCRIPT_URL}?lat=${lat}&lng=${lng}&name=${encodeURIComponent(name)}`)
+                        .then(res => res.json())
+                        .then(data => {
+                            if(data.result === 'success') {
+                                // [3단계] 변환된 주소를 Firebase에 업데이트
+                                console.log("주소 변환 완료:", data.address);
+                                if(window.updateFirebaseAddress && key) {
+                                    window.updateFirebaseAddress(key, data.address);
+                                    statusDiv.innerText = `✅ ${name}님, 저장 완료!`; // 주소까지 완료됨
+                                }
                             }
-                        } else {
-                            statusDiv.innerText = "오류: " + (data.error || "알 수 없는 오류");
+                        })
+                        .catch(err => {
+                            console.error("GAS 에러:", err);
+                            // GAS가 실패해도 Firebase에는 좌표가 저장되어 있으므로 안심
+                        })
+                        .finally(() => {
                             btn.disabled = false;
-                        }
-                    })
-                    .catch(err => {
-                        console.error(err);
-                        statusDiv.innerText = "서버 통신 에러";
+                        });
+
+                    } catch (e) {
+                        console.error(e);
+                        statusDiv.innerText = "❌ 저장 실패: " + e.message;
                         btn.disabled = false;
-                    });
+                    }
                 },
                 (err) => {
                     statusDiv.innerText = "위치 권한 차단됨: " + err.message;
@@ -142,5 +124,3 @@
             );
         }
     </script>
-</body>
-</html>
