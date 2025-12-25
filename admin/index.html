@@ -26,9 +26,9 @@
         }
 
         /* 헤더 영역 */
-        header { text-align: center; margin-bottom: 30px; }
+        header { text-align: center; margin-bottom: 20px; }
         
-        /* 제목 스타일 변경 (아이콘 포함) */
+        /* 제목 스타일 */
         h2 { 
             margin: 0 0 20px 0; 
             font-size: 1.5rem; 
@@ -37,23 +37,26 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px; /* 아이콘과 텍스트 사이 간격 */
+            gap: 8px; 
         }
 
         /* 필터 컨트롤 영역 */
         .filter-controls {
             display: flex; flex-direction: column; align-items: center; gap: 15px;
             margin-bottom: 20px;
+            background: #fafafa; /* 컨트롤 영역 배경 */
+            padding: 20px;
+            border-radius: 15px;
         }
 
         .radio-group {
-            background: #f0f2f5;
-            padding: 5px;
+            background: #e9ecef;
+            padding: 4px;
             border-radius: 25px;
             display: inline-flex;
         }
         .radio-group label {
-            padding: 8px 16px;
+            padding: 8px 20px;
             cursor: pointer;
             border-radius: 20px;
             font-size: 0.9rem;
@@ -65,18 +68,45 @@
             background: white;
             color: #4285F4;
             font-weight: bold;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
-        .date-inputs { display: flex; gap: 10px; align-items: center; justify-content: center; width: 100%; }
+        .date-inputs { 
+            display: flex; gap: 10px; align-items: center; justify-content: center; width: 100%; 
+        }
         input[type="date"], input[type="month"] {
             padding: 10px 15px;
             border: 1px solid #ddd;
-            border-radius: 12px;
+            border-radius: 10px;
             font-size: 1rem;
             font-family: inherit;
             outline: none;
             background: #fff;
+            color: #333;
+        }
+        input[type="date"]:focus, input[type="month"]:focus { border-color: #4285F4; }
+
+        /* 조회 버튼 스타일 추가 */
+        .search-btn {
+            background-color: #4285F4;
+            color: white;
+            border: none;
+            padding: 12px 0;
+            width: 100%;
+            max-width: 200px;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+            box-shadow: 0 4px 6px rgba(66, 133, 244, 0.2);
+        }
+        .search-btn:hover {
+            background-color: #3367d6;
+            box-shadow: 0 4px 8px rgba(66, 133, 244, 0.3);
+        }
+        .search-btn:active {
+            transform: translateY(1px);
         }
 
         /* 리스트 스타일 */
@@ -143,6 +173,8 @@
                 </div>
 
                 <div id="inputArea" class="date-inputs"></div>
+
+                <button class="search-btn" onclick="filterAndRender()">조회 하기</button>
             </div>
         </header>
 
@@ -204,6 +236,7 @@
                 } else {
                     allData = Object.values(data);
                 }
+                // 앱 처음 실행 시에는 오늘 날짜로 자동 조회 (편의상)
                 filterAndRender();
             });
         }
@@ -213,10 +246,11 @@
             for (let radio of radios) {
                 if (radio.checked) currentMode = radio.value;
             }
-            renderInputs();
-            filterAndRender();
+            // 모드 변경 시 인풋창만 다시 그리고 자동 조회는 하지 않음
+            renderInputs(); 
         }
 
+        // 인풋 렌더링 (onchange 제거됨)
         function renderInputs() {
             const area = document.getElementById('inputArea');
             const today = new Date();
@@ -225,9 +259,9 @@
             const dd = String(today.getDate()).padStart(2, '0');
 
             if (currentMode === 'daily') {
-                area.innerHTML = `<input type="date" id="dateStart" value="${yyyy}-${mm}-${dd}" onchange="filterAndRender()">`;
+                area.innerHTML = `<input type="date" id="dateStart" value="${yyyy}-${mm}-${dd}">`;
             } else if (currentMode === 'monthly') {
-                area.innerHTML = `<input type="month" id="monthInput" value="${yyyy}-${mm}" onchange="filterAndRender()">`;
+                area.innerHTML = `<input type="month" id="monthInput" value="${yyyy}-${mm}">`;
             } else if (currentMode === 'range') {
                 let weekAgo = new Date(today);
                 weekAgo.setDate(today.getDate() - 7);
@@ -236,89 +270,94 @@
                 const w_dd = String(weekAgo.getDate()).padStart(2, '0');
 
                 area.innerHTML = `
-                    <input type="date" id="dateStart" value="${w_yyyy}-${w_mm}-${w_dd}" onchange="filterAndRender()">
+                    <input type="date" id="dateStart" value="${w_yyyy}-${w_mm}-${w_dd}">
                     <span>~</span>
-                    <input type="date" id="dateEnd" value="${yyyy}-${mm}-${dd}" onchange="filterAndRender()">
+                    <input type="date" id="dateEnd" value="${yyyy}-${mm}-${dd}">
                 `;
             }
         }
 
+        // 조회 버튼 클릭 시 실행되는 메인 함수
         function filterAndRender() {
             const listContainer = document.getElementById('logList');
             if (allData.length === 0) {
-                listContainer.innerHTML = '<li class="no-data">저장된 기록이 없습니다.</li>';
+                listContainer.innerHTML = '<li class="no-data">데이터를 불러오는 중이거나 저장된 기록이 없습니다.</li>';
                 return;
             }
 
-            let filtered = allData.filter(item => {
-                let itemDateStr = item.date || item.timestamp;
-                if(!itemDateStr) return false;
-                
-                let d = new Date(item.timestamp);
-                if(isNaN(d)) { d = new Date(itemDateStr.substring(0, 10)); }
-                
-                const itemYMD = d.toISOString().split('T')[0];
-                const itemYM = itemYMD.substring(0, 7);
+            listContainer.innerHTML = '<li class="no-data">조회 중...</li>';
 
-                if (currentMode === 'daily') {
-                    const target = document.getElementById('dateStart').value;
-                    return itemYMD === target;
-                } 
-                else if (currentMode === 'monthly') {
-                    const target = document.getElementById('monthInput').value;
-                    return itemYM === target;
-                } 
-                else if (currentMode === 'range') {
-                    const start = document.getElementById('dateStart').value;
-                    const end = document.getElementById('dateEnd').value;
-                    return itemYMD >= start && itemYMD <= end;
+            // 잠시 텀을 두어 "조회 중" 메시지가 보이도록 함 (UX)
+            setTimeout(() => {
+                let filtered = allData.filter(item => {
+                    let itemDateStr = item.date || item.timestamp;
+                    if(!itemDateStr) return false;
+                    
+                    let d = new Date(item.timestamp);
+                    if(isNaN(d)) { d = new Date(itemDateStr.substring(0, 10)); }
+                    
+                    const itemYMD = d.toISOString().split('T')[0];
+                    const itemYM = itemYMD.substring(0, 7);
+
+                    if (currentMode === 'daily') {
+                        const target = document.getElementById('dateStart').value;
+                        return itemYMD === target;
+                    } 
+                    else if (currentMode === 'monthly') {
+                        const target = document.getElementById('monthInput').value;
+                        return itemYM === target;
+                    } 
+                    else if (currentMode === 'range') {
+                        const start = document.getElementById('dateStart').value;
+                        const end = document.getElementById('dateEnd').value;
+                        return itemYMD >= start && itemYMD <= end;
+                    }
+                    return true;
+                });
+
+                filtered.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                if (filtered.length === 0) {
+                    listContainer.innerHTML = '<li class="no-data">해당 조건의 기록이 없습니다.</li>';
+                    return;
                 }
-                return true;
-            });
 
-            filtered.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                listContainer.innerHTML = '';
+                filtered.forEach((item, index) => {
+                    const li = document.createElement('li');
+                    li.className = 'log-item';
 
-            if (filtered.length === 0) {
-                listContainer.innerHTML = '<li class="no-data">해당 기간의 기록이 없습니다.</li>';
-                return;
-            }
+                    const dateObj = new Date(item.timestamp);
+                    const prettyDate = isNaN(dateObj) ? item.timestamp : 
+                        `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')} ` +
+                        `${String(dateObj.getHours()).padStart(2,'0')}:${String(dateObj.getMinutes()).padStart(2,'0')}`;
 
-            listContainer.innerHTML = '';
-            filtered.forEach((item, index) => {
-                const li = document.createElement('li');
-                li.className = 'log-item';
+                    const uniqueId = `addr-${index}-${Date.now()}`;
 
-                const dateObj = new Date(item.timestamp);
-                const prettyDate = isNaN(dateObj) ? item.timestamp : 
-                    `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')} ` +
-                    `${String(dateObj.getHours()).padStart(2,'0')}:${String(dateObj.getMinutes()).padStart(2,'0')}`;
+                    li.innerHTML = `
+                        <div class="item-header">
+                            <span class="item-name">${item.name || '이름 없음'}</span>
+                            <span class="item-time">${prettyDate}</span>
+                        </div>
+                        <div class="item-address" 
+                            id="${uniqueId}"
+                            onmouseenter="showMap(event, ${item.latitude}, ${item.longitude})" 
+                            onmouseleave="hideMap()">
+                            <span style="color:#888;">📍 주소 변환 중... (${item.address || '위치정보'})</span>
+                        </div>
+                    `;
+                    listContainer.appendChild(li);
 
-                const uniqueId = `addr-${index}-${Date.now()}`;
-
-                li.innerHTML = `
-                    <div class="item-header">
-                        <span class="item-name">${item.name || '이름 없음'}</span>
-                        <span class="item-time">${prettyDate}</span>
-                    </div>
-                    <div class="item-address" 
-                         id="${uniqueId}"
-                         onmouseenter="showMap(event, ${item.latitude}, ${item.longitude})" 
-                         onmouseleave="hideMap()">
-                         <span style="color:#888;">📍 주소 변환 중... (${item.address || '위치정보'})</span>
-                    </div>
-                `;
-                listContainer.appendChild(li);
-
-                if(item.latitude && item.longitude) {
-                    convertAddressToKorean(item.latitude, item.longitude, uniqueId, item.address);
-                }
-            });
+                    if(item.latitude && item.longitude) {
+                        convertAddressToKorean(item.latitude, item.longitude, uniqueId, item.address);
+                    }
+                });
+            }, 100); // 0.1초 딜레이
         }
 
-        // 🟢 수정된 주소 변환 함수 (한국 주소 포맷으로 변경)
+        // 주소 변환 (한국식 주소 포맷: 시 구 동 도로명)
         async function convertAddressToKorean(lat, lng, elementId, originalAddress) {
             try {
-                // addressdetails=1 옵션 추가하여 상세 주소 객체 받기
                 const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ko&zoom=18&addressdetails=1`);
                 const data = await response.json();
                 
@@ -327,21 +366,15 @@
                 if(el && data.address) {
                     const addr = data.address;
                     
-                    // 주소 요소 순서대로 조합 (시 구 동 도로명)
-                    const city = addr.city || addr.province || addr.special_city || ''; // 광주광역시 등
-                    const gu = addr.borough || addr.district || ''; // 남구 등
-                    const dong = addr.quarter || addr.neighbourhood || ''; // 진월동 등
-                    const road = addr.road || ''; // 도로명
-                    const postcode = addr.postcode || ''; // 우편번호
+                    const city = addr.city || addr.province || addr.special_city || ''; 
+                    const gu = addr.borough || addr.district || ''; 
+                    const dong = addr.quarter || addr.neighbourhood || ''; 
+                    const road = addr.road || ''; 
+                    const postcode = addr.postcode || ''; 
 
-                    // 공백 제거하며 문자열 합치기
                     let fullAddr = `${city} ${gu} ${dong} ${road}`.replace(/  +/g, ' ').trim();
-                    
-                    if (postcode) {
-                        fullAddr += `, ${postcode}`;
-                    }
+                    if (postcode) fullAddr += `, ${postcode}`;
 
-                    // 만약 조합된 주소가 비어있다면 원본 사용
                     el.innerText = fullAddr || data.display_name;
                 } 
             } catch (e) {
