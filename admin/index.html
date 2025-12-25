@@ -1,215 +1,4 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>위치 기록</title>
-    <link rel="icon" href="favicon.png" type="image/png">
-    <link rel="manifest" href="manifest.json">
-    
-    <style>
-        /* 기본 설정 & 폰트 */
-        body { 
-            font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; 
-            margin: 0; padding: 20px; 
-            background-color: #f5f7fa;
-            color: #333;
-            
-            /* 1. 텍스트 선택 방지 (기존 유지) */
-            -webkit-user-select: none; 
-            user-select: none;
-
-            /* 2. 모바일 당겨서 새로고침(Pull-to-refresh) 및 바운스 효과 차단 */
-            overscroll-behavior: none;
-        }
-
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            padding: 30px 20px;
-            overflow: hidden;
-            min-height: 400px; 
-        }
-
-        /* 헤더 영역 */
-        header { text-align: center; margin-bottom: 20px; }
-        
-        h2 { 
-            margin: 0 0 20px 0; 
-            font-size: 1.5rem; 
-            font-weight: 800; 
-            color: #1a1a1a;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px; 
-        }
-
-        /* 필터 컨트롤 영역 */
-        .filter-controls {
-            display: flex; flex-direction: column; align-items: center; gap: 15px;
-            margin-bottom: 20px;
-            background: #fafafa;
-            padding: 20px;
-            border-radius: 15px;
-        }
-
-        .radio-group {
-            background: #e9ecef;
-            padding: 4px;
-            border-radius: 25px;
-            display: inline-flex;
-        }
-        .radio-group label {
-            padding: 8px 20px;
-            cursor: pointer;
-            border-radius: 20px;
-            font-size: 0.9rem;
-            color: #666;
-            transition: all 0.2s;
-        }
-        .radio-group input[type="radio"] { display: none; }
-        .radio-group input[type="radio"]:checked + label {
-            background: white;
-            color: #4285F4;
-            font-weight: bold;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-
-        /* 날짜 버튼 스타일 */
-        .date-inputs { 
-            display: flex; 
-            gap: 0px; 
-            align-items: center; 
-            justify-content: center; 
-            width: 100%; 
-        }
-        input[type="date"], input[type="month"] {
-            padding: 10px 2px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-family: inherit;
-            outline: none;
-            background: #fff;
-            color: #333;
-            text-align: center;
-            width: auto;
-        }
-        .date-inputs span { margin: 0 5px; font-weight: bold; color: #888; }
-
-        .search-btn {
-            background-color: #4285F4;
-            color: white;
-            border: none;
-            padding: 12px 0;
-            width: 100%;
-            max-width: 200px;
-            border-radius: 12px;
-            font-size: 1rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background 0.2s;
-            box-shadow: 0 4px 6px rgba(66, 133, 244, 0.2);
-        }
-        .search-btn:hover { background-color: #3367d6; }
-        .search-btn:active { transform: translateY(1px); }
-
-        /* 리스트 스타일 */
-        .log-list { list-style: none; padding: 0; margin: 0; }
-        .log-item {
-            padding: 20px 0;
-            border-bottom: 1px solid #f0f0f0;
-            display: flex; flex-direction: column; gap: 8px;
-        }
-        .log-item:last-child { border-bottom: none; }
-        
-        .item-header { display: flex; align-items: baseline; gap: 10px; }
-        .item-name { font-size: 1.1rem; font-weight: 700; color: #4285F4; }
-        .item-time { font-size: 0.95rem; color: #333; font-weight: 400; }
-        
-        .item-address {
-            font-size: 0.95rem;
-            color: #666;
-            background: #f9f9f9;
-            padding: 8px 12px;
-            border-radius: 8px;
-            cursor: pointer; 
-            line-height: 1.4;
-            display: inline-block;
-            width: fit-content;
-            transition: background 0.2s, color 0.2s;
-        }
-        .item-address:hover { background: #eef4ff; color: #4285F4; }
-        .item-address:active { background: #dceaff; }
-
-        .no-data { text-align: center; padding: 40px; color: #999; }
-
-    </style>
-</head>
-<body>
-
-    <div class="container">
-        <header>
-            <h2>
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 2C7.58172 2 4 5.58172 4 10C4 14.4183 12 22 12 22C12 22 20 14.4183 20 10C20 5.58172 16.4183 2 12 2Z" fill="#FF3B30"/>
-                    <circle cx="12" cy="10" r="3" fill="white"/>
-                </svg>
-                위치 기록
-            </h2>
-            
-            <div class="filter-controls">
-                <div class="radio-group">
-                    <input type="radio" name="viewMode" id="modeDaily" value="daily" checked onchange="changeMode()">
-                    <label for="modeDaily">일별</label>
-
-                    <input type="radio" name="viewMode" id="modeMonthly" value="monthly" onchange="changeMode()">
-                    <label for="modeMonthly">월별</label>
-
-                    <input type="radio" name="viewMode" id="modeRange" value="range" onchange="changeMode()">
-                    <label for="modeRange">기간 설정</label>
-                </div>
-
-                <div id="inputArea" class="date-inputs"></div>
-                <button class="search-btn" onclick="filterAndRender()">조회 하기</button>
-            </div>
-        </header>
-
-        <ul id="logList" class="log-list">
-            <li class="no-data">데이터를 불러오는 중입니다...</li>
-        </ul>
-    </div>
-
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getDatabase, ref, query, limitToLast, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyB-qu7Z0v_ygNbiKzT7tt6Byigp_AGcdPo",
-            authDomain: "gps1-cf085.firebaseapp.com",
-            databaseURL: "https://gps1-cf085-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "gps1-cf085",
-            storageBucket: "gps1-cf085.firebasestorage.app",
-            messagingSenderId: "407130432420",
-            appId: "1:407130432420:web:2f78b17a891bce1e6cd731"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-        
-        window.dbRef = ref(db, 'locations');
-        window.dbQuery = query;
-        window.dbLimit = limitToLast;
-        window.dbOnValue = onValue;
-
-        startApp();
-    </script>
-
-    <script>
+<script>
         // 1. 우클릭(컨텍스트 메뉴) 및 모바일 롱터치 메뉴 원천 차단
         document.addEventListener('contextmenu', event => event.preventDefault());
 
@@ -299,6 +88,11 @@
                         `${String(dateObj.getHours()).padStart(2,'0')}:${String(dateObj.getMinutes()).padStart(2,'0')}`;
 
                     const uniqueId = `addr-${index}-${Date.now()}`;
+                    
+                    // 한글 포함 여부 체크 (한글이 있으면 true)
+                    const isKorean = /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(item.address);
+                    const displayAddress = isKorean ? item.address : `📍 주소 변환 중... (${item.address || '위치정보'})`;
+                    const addressStyle = isKorean ? 'color:#333;' : 'color:#888;';
 
                     li.innerHTML = `
                         <div class="item-header">
@@ -309,36 +103,60 @@
                             id="${uniqueId}"
                             onclick="openKakaoMap(${item.latitude}, ${item.longitude})"
                             title="클릭하여 카카오맵 열기">
-                            <span style="color:#888;">📍 주소 변환 중... (${item.address || '위치정보'})</span>
+                            <span style="${addressStyle}">${displayAddress}</span>
                         </div>
                     `;
                     listContainer.appendChild(li);
 
-                    if(item.latitude && item.longitude) convertAddressToKorean(item.latitude, item.longitude, uniqueId, item.address);
+                    // 한글이 아니거나 주소가 없을 때만 변환 함수 실행
+                    if(!isKorean && item.latitude && item.longitude) {
+                        convertAddressToKorean(item.latitude, item.longitude, uniqueId, item.address);
+                    }
                 });
             }, 100);
         }
 
+        // 개선된 주소 변환 함수 (시/도 누락 해결 버전)
         async function convertAddressToKorean(lat, lng, elementId, originalAddress) {
             try {
                 const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ko&zoom=18&addressdetails=1`);
                 const data = await response.json();
                 const el = document.getElementById(elementId);
+                
                 if(el && data.address) {
                     const addr = data.address;
-                    const city = addr.city || addr.province || addr.special_city || ''; 
-                    const gu = addr.borough || addr.district || ''; 
-                    const dong = addr.quarter || addr.neighbourhood || ''; 
-                    const road = addr.road || ''; 
-                    const postcode = addr.postcode || ''; 
+                    
+                    // 1. 시/도
+                    let region = addr.province || addr.state || '';
+                    // 2. 시/군/구
+                    let city = addr.city || addr.county || '';
+                    if (region === city) { city = ''; } // 중복 제거
+                    // 3. 구
+                    let gu = addr.borough || addr.district || '';
+                    // 4. 동/면/읍
+                    let dong = addr.quarter || addr.neighbourhood || addr.town || addr.village || '';
+                    // 5. 도로명
+                    let road = addr.road || '';
+                    
+                    // 주소 합치기
+                    let parts = [region, city, gu, dong, road].filter(part => part && part.trim() !== '');
+                    let fullAddr = parts.join(' ');
 
-                    let fullAddr = `${city} ${gu} ${dong} ${road}`.replace(/  +/g, ' ').trim();
-                    if (postcode) fullAddr += `, ${postcode}`;
-                    el.innerText = fullAddr || data.display_name;
+                    if (addr.postcode) fullAddr += ` (${addr.postcode})`;
+
+                    // span 태그 찾아서 텍스트 변경
+                    const span = el.querySelector('span');
+                    if(span) {
+                        span.innerText = fullAddr || data.display_name;
+                        span.style.color = "#333";
+                    } else {
+                        el.innerText = fullAddr || data.display_name;
+                        el.style.color = "#333";
+                    }
                 } 
             } catch (e) {
                 const el = document.getElementById(elementId);
-                if(el) el.innerText = originalAddress;
+                // 실패 시 원본 유지
             }
         }
 
@@ -350,12 +168,4 @@
             const url = `https://map.kakao.com/link/map/${lat},${lng}`;
             window.open(url, '_blank');
         };
-
     </script>
-      <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').catch(() => console.log('SW Fail'));
-    }
-  </script>
-</body>
-</html>
