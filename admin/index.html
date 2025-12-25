@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>관리자 모니터링</title>
+    <title>위치 모니터링</title>
+    <link rel="manifest" href="manifest.json">
+
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
@@ -241,5 +243,10 @@
             document.getElementById('map-tooltip').style.display = 'none';
         }
     </script>
+   <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(() => console.log('SW Fail'));
+    }
+  </script>   
 </body>
 </html>
