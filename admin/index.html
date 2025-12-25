@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>위치 기록</title>
     <link rel="icon" href="favicon.png" type="image/png">
     <link rel="manifest" href="manifest.json">
@@ -14,8 +14,13 @@
             margin: 0; padding: 20px; 
             background-color: #f5f7fa;
             color: #333;
+            
+            /* 1. 텍스트 선택 방지 (기존 유지) */
             -webkit-user-select: none; 
             user-select: none;
+
+            /* 2. 모바일 당겨서 새로고침(Pull-to-refresh) 및 바운스 효과 차단 */
+            overscroll-behavior: none;
         }
 
         .container {
@@ -138,9 +143,7 @@
             width: fit-content;
             transition: background 0.2s, color 0.2s;
         }
-        /* 클릭 가능하다는 느낌을 주기 위해 Hover 효과 유지 */
         .item-address:hover { background: #eef4ff; color: #4285F4; }
-        /* 터치했을 때 효과 */
         .item-address:active { background: #dceaff; }
 
         .no-data { text-align: center; padding: 40px; color: #999; }
@@ -207,6 +210,9 @@
     </script>
 
     <script>
+        // 1. 우클릭(컨텍스트 메뉴) 및 모바일 롱터치 메뉴 원천 차단
+        document.addEventListener('contextmenu', event => event.preventDefault());
+
         let allData = [];
         let currentMode = 'daily';
 
@@ -294,7 +300,6 @@
 
                     const uniqueId = `addr-${index}-${Date.now()}`;
 
-                    // 변경된 부분: 마우스 오버, 우클릭 등 제거하고 onclick만 남김
                     li.innerHTML = `
                         <div class="item-header">
                             <span class="item-name">${item.name || '이름 없음'}</span>
@@ -337,7 +342,6 @@
             }
         }
 
-        // 카카오맵 바로 열기 함수
         window.openKakaoMap = function(lat, lng) {
             if (!lat || !lng) {
                 alert('위치 정보가 없습니다.');
