@@ -34,6 +34,8 @@
     <br>
     
     <button id="checkInBtn" onclick="getLocation()">출석하기</button>
+    <div id="status"></div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getDatabase, ref, push, set, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
