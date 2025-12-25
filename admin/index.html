@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>위치 정보 목록</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="icon" href="favicon.png" type="image/png">
+  <link rel="manifest" href="manifest.json">
     
     <style>
         /* 기본 설정 & 폰트 */
@@ -458,5 +459,10 @@
             document.getElementById('map-tooltip').style.display = 'none';
         };
     </script>
+      <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(() => console.log('SW Fail'));
+    }
+  </script>
 </body>
 </html>
