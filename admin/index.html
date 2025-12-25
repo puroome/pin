@@ -13,6 +13,9 @@
             margin: 0; padding: 20px; 
             background-color: #f5f7fa;
             color: #333;
+            /* 모바일에서 길게 누를 때 텍스트 선택 방지 (메뉴 뜨게 하기 위함) */
+            -webkit-user-select: none; 
+            user-select: none;
         }
 
         .container {
@@ -23,12 +26,12 @@
             box-shadow: 0 4px 20px rgba(0,0,0,0.08);
             padding: 30px 20px;
             overflow: hidden;
+            min-height: 400px; /* 컨텐츠 없어도 최소 높이 유지 */
         }
 
         /* 헤더 영역 */
         header { text-align: center; margin-bottom: 20px; }
         
-        /* 제목 스타일 */
         h2 { 
             margin: 0 0 20px 0; 
             font-size: 1.5rem; 
@@ -44,7 +47,7 @@
         .filter-controls {
             display: flex; flex-direction: column; align-items: center; gap: 15px;
             margin-bottom: 20px;
-            background: #fafafa; /* 컨트롤 영역 배경 */
+            background: #fafafa;
             padding: 20px;
             border-radius: 15px;
         }
@@ -84,9 +87,7 @@
             background: #fff;
             color: #333;
         }
-        input[type="date"]:focus, input[type="month"]:focus { border-color: #4285F4; }
 
-        /* 조회 버튼 스타일 추가 */
         .search-btn {
             background-color: #4285F4;
             color: white;
@@ -101,13 +102,8 @@
             transition: background 0.2s;
             box-shadow: 0 4px 6px rgba(66, 133, 244, 0.2);
         }
-        .search-btn:hover {
-            background-color: #3367d6;
-            box-shadow: 0 4px 8px rgba(66, 133, 244, 0.3);
-        }
-        .search-btn:active {
-            transform: translateY(1px);
-        }
+        .search-btn:hover { background-color: #3367d6; }
+        .search-btn:active { transform: translateY(1px); }
 
         /* 리스트 스타일 */
         .log-list { list-style: none; padding: 0; margin: 0; }
@@ -128,14 +124,16 @@
             background: #f9f9f9;
             padding: 8px 12px;
             border-radius: 8px;
-            cursor: pointer;
+            cursor: pointer; /* 손가락 모양 */
             line-height: 1.4;
+            position: relative;
         }
+        /* 우클릭 가능함을 시각적으로 살짝 힌트 주기 (선택사항) */
         .item-address:hover { background: #eef4ff; color: #4285F4; }
 
         .no-data { text-align: center; padding: 40px; color: #999; }
 
-        /* 지도 툴팁 */
+        /* 지도 툴팁 (미니맵) */
         #map-tooltip {
             display: none; position: fixed;
             width: 300px; height: 200px;
@@ -145,7 +143,39 @@
             background: white;
             overflow: hidden;
             border: 2px solid white;
+            pointer-events: none; /* 툴팁 위에서는 클릭 통과 */
         }
+
+        /* ✨ 커스텀 컨텍스트 메뉴 (우클릭 팝업) */
+        #context-menu {
+            display: none;
+            position: absolute;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+            width: 160px;
+            z-index: 2000;
+            overflow: hidden;
+            border: 1px solid #eee;
+            animation: fadeIn 0.1s ease-out;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        
+        .menu-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.1s;
+            border-bottom: 1px solid #f5f5f5;
+        }
+        .menu-item:last-child { border-bottom: none; }
+        .menu-item:hover { background-color: #f0f7ff; color: #4285F4; }
+        
+        .menu-icon { width: 18px; height: 18px; display: inline-block; vertical-align: middle; }
     </style>
 </head>
 <body>
@@ -173,7 +203,6 @@
                 </div>
 
                 <div id="inputArea" class="date-inputs"></div>
-
                 <button class="search-btn" onclick="filterAndRender()">조회 하기</button>
             </div>
         </header>
@@ -185,6 +214,15 @@
 
     <div id="map-tooltip">
         <div id="map" style="width: 100%; height: 100%;"></div>
+    </div>
+
+    <div id="context-menu">
+        <div class="menu-item" onclick="openMap('naver')">
+            <span style="color:#2DB400; font-weight:bold;">N</span> 네이버 지도 보기
+        </div>
+        <div class="menu-item" onclick="openMap('kakao')">
+            <span style="color:#F7E600; font-weight:bold; background:#333; padding:0 3px; border-radius:2px;">K</span> 카카오맵 보기
+        </div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -218,39 +256,31 @@
         let allData = [];
         let currentMode = 'daily';
         let map = null;
+        let selectedLat = 0; // 컨텍스트 메뉴용 저장 좌표
+        let selectedLng = 0;
 
         function startApp() {
             renderInputs();
-            
-            if(!window.dbOnValue) {
-                setTimeout(startApp, 500);
-                return;
-            }
-
+            if(!window.dbOnValue) { setTimeout(startApp, 500); return; }
             const recentPostsQuery = window.dbQuery(window.dbRef, window.dbLimit(300));
-
             window.dbOnValue(recentPostsQuery, (snapshot) => {
                 const data = snapshot.val();
-                if (!data) {
-                    allData = [];
-                } else {
-                    allData = Object.values(data);
-                }
-                // 앱 처음 실행 시에는 오늘 날짜로 자동 조회 (편의상)
+                allData = data ? Object.values(data) : [];
                 filterAndRender();
+            });
+
+            // 화면 아무데나 클릭하면 컨텍스트 메뉴 닫기
+            document.addEventListener('click', function() {
+                document.getElementById('context-menu').style.display = 'none';
             });
         }
 
         function changeMode() {
             const radios = document.getElementsByName('viewMode');
-            for (let radio of radios) {
-                if (radio.checked) currentMode = radio.value;
-            }
-            // 모드 변경 시 인풋창만 다시 그리고 자동 조회는 하지 않음
+            for (let radio of radios) { if (radio.checked) currentMode = radio.value; }
             renderInputs(); 
         }
 
-        // 인풋 렌더링 (onchange 제거됨)
         function renderInputs() {
             const area = document.getElementById('inputArea');
             const today = new Date();
@@ -268,45 +298,30 @@
                 const w_yyyy = weekAgo.getFullYear();
                 const w_mm = String(weekAgo.getMonth() + 1).padStart(2, '0');
                 const w_dd = String(weekAgo.getDate()).padStart(2, '0');
-
-                area.innerHTML = `
-                    <input type="date" id="dateStart" value="${w_yyyy}-${w_mm}-${w_dd}">
-                    <span>~</span>
-                    <input type="date" id="dateEnd" value="${yyyy}-${mm}-${dd}">
-                `;
+                area.innerHTML = `<input type="date" id="dateStart" value="${w_yyyy}-${w_mm}-${w_dd}"><span>~</span><input type="date" id="dateEnd" value="${yyyy}-${mm}-${dd}">`;
             }
         }
 
-        // 조회 버튼 클릭 시 실행되는 메인 함수
         function filterAndRender() {
             const listContainer = document.getElementById('logList');
             if (allData.length === 0) {
                 listContainer.innerHTML = '<li class="no-data">데이터를 불러오는 중이거나 저장된 기록이 없습니다.</li>';
                 return;
             }
-
             listContainer.innerHTML = '<li class="no-data">조회 중...</li>';
 
-            // 잠시 텀을 두어 "조회 중" 메시지가 보이도록 함 (UX)
             setTimeout(() => {
                 let filtered = allData.filter(item => {
                     let itemDateStr = item.date || item.timestamp;
                     if(!itemDateStr) return false;
-                    
                     let d = new Date(item.timestamp);
                     if(isNaN(d)) { d = new Date(itemDateStr.substring(0, 10)); }
                     
                     const itemYMD = d.toISOString().split('T')[0];
                     const itemYM = itemYMD.substring(0, 7);
 
-                    if (currentMode === 'daily') {
-                        const target = document.getElementById('dateStart').value;
-                        return itemYMD === target;
-                    } 
-                    else if (currentMode === 'monthly') {
-                        const target = document.getElementById('monthInput').value;
-                        return itemYM === target;
-                    } 
+                    if (currentMode === 'daily') return itemYMD === document.getElementById('dateStart').value;
+                    else if (currentMode === 'monthly') return itemYM === document.getElementById('monthInput').value;
                     else if (currentMode === 'range') {
                         const start = document.getElementById('dateStart').value;
                         const end = document.getElementById('dateEnd').value;
@@ -326,7 +341,6 @@
                 filtered.forEach((item, index) => {
                     const li = document.createElement('li');
                     li.className = 'log-item';
-
                     const dateObj = new Date(item.timestamp);
                     const prettyDate = isNaN(dateObj) ? item.timestamp : 
                         `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')} ` +
@@ -341,31 +355,27 @@
                         </div>
                         <div class="item-address" 
                             id="${uniqueId}"
-                            onmouseenter="showMap(event, ${item.latitude}, ${item.longitude})" 
-                            onmouseleave="hideMap()">
+                            onmouseenter="showMiniMap(event, ${item.latitude}, ${item.longitude})" 
+                            onmouseleave="hideMiniMap()"
+                            oncontextmenu="showContextMenu(event, ${item.latitude}, ${item.longitude})">
                             <span style="color:#888;">📍 주소 변환 중... (${item.address || '위치정보'})</span>
                         </div>
                     `;
                     listContainer.appendChild(li);
 
-                    if(item.latitude && item.longitude) {
-                        convertAddressToKorean(item.latitude, item.longitude, uniqueId, item.address);
-                    }
+                    if(item.latitude && item.longitude) convertAddressToKorean(item.latitude, item.longitude, uniqueId, item.address);
                 });
-            }, 100); // 0.1초 딜레이
+            }, 100);
         }
 
-        // 주소 변환 (한국식 주소 포맷: 시 구 동 도로명)
+        // 주소 변환
         async function convertAddressToKorean(lat, lng, elementId, originalAddress) {
             try {
                 const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ko&zoom=18&addressdetails=1`);
                 const data = await response.json();
-                
                 const el = document.getElementById(elementId);
-                
                 if(el && data.address) {
                     const addr = data.address;
-                    
                     const city = addr.city || addr.province || addr.special_city || ''; 
                     const gu = addr.borough || addr.district || ''; 
                     const dong = addr.quarter || addr.neighbourhood || ''; 
@@ -374,17 +384,49 @@
 
                     let fullAddr = `${city} ${gu} ${dong} ${road}`.replace(/  +/g, ' ').trim();
                     if (postcode) fullAddr += `, ${postcode}`;
-
                     el.innerText = fullAddr || data.display_name;
                 } 
             } catch (e) {
-                console.error("주소 변환 실패", e);
                 const el = document.getElementById(elementId);
                 if(el) el.innerText = originalAddress;
             }
         }
 
-        window.showMap = function(e, lat, lng) {
+        // 🟢 컨텍스트 메뉴 보이기
+        window.showContextMenu = function(e, lat, lng) {
+            e.preventDefault(); // 기본 우클릭 메뉴 차단
+            
+            selectedLat = lat;
+            selectedLng = lng;
+
+            const menu = document.getElementById('context-menu');
+            
+            // 클릭 위치에 메뉴 표시
+            menu.style.left = e.pageX + 'px';
+            menu.style.top = e.pageY + 'px';
+            menu.style.display = 'block';
+        };
+
+        // 🟢 지도 새창 열기
+        window.openMap = function(type) {
+            let url = '';
+            if (type === 'naver') {
+                // 네이버 지도 (PC/Mobile 공용 쿼리)
+                url = `https://map.naver.com/v5/?q=${selectedLat},${selectedLng}`;
+            } else if (type === 'kakao') {
+                // 카카오 지도
+                url = `https://map.kakao.com/link/map/${selectedLat},${selectedLng}`;
+            }
+            
+            // 새 창으로 열기
+            window.open(url, '_blank');
+        };
+
+        // 기존 미니맵 (이름 충돌 방지를 위해 showMiniMap으로 변경)
+        window.showMiniMap = function(e, lat, lng) {
+            // 컨텍스트 메뉴가 떠있으면 미니맵 안보여줌 (간섭 방지)
+            if(document.getElementById('context-menu').style.display === 'block') return;
+
             const tooltip = document.getElementById('map-tooltip');
             let x = e.clientX + 15;
             let y = e.clientY + 15;
@@ -396,9 +438,7 @@
 
             if (map) {
                 map.setView([lat, lng], 16);
-                map.eachLayer(layer => {
-                    if (layer instanceof L.Marker) map.removeLayer(layer);
-                });
+                map.eachLayer(layer => { if (layer instanceof L.Marker) map.removeLayer(layer); });
                 L.marker([lat, lng]).addTo(map);
                 map.invalidateSize();
             } else {
@@ -408,7 +448,7 @@
             }
         };
 
-        window.hideMap = function() {
+        window.hideMiniMap = function() {
             document.getElementById('map-tooltip').style.display = 'none';
         };
     </script>
